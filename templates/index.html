@@ -1,0 +1,228 @@
+{% extends "base.html" %}
+
+{% block title %}BankDoc AI — PDF Chat{% endblock %}
+
+{% block content %}
+<div class="app-shell">
+
+  <!-- ── LEFT PANEL: PDF Viewer ── -->
+  <aside class="pdf-panel">
+    <header class="panel-header pdf-header">
+      <span class="header-eyebrow">Document</span>
+      <h1 class="header-title">BankDoc <em>AI</em></h1>
+    </header>
+    <div class="pdf-viewer-wrapper">
+      <iframe
+        src="{{ url_for('static', filename='gold_loan_pdf.pdf') }}"
+        class="pdf-iframe"
+        title="Banking Document Viewer"
+      ></iframe>
+    </div>
+  </aside>
+
+  <!-- ── RIGHT PANEL: Chat Interface ── -->
+  <main class="chat-panel">
+    <header class="panel-header chat-header">
+      <span class="header-eyebrow">AI Assistant</span>
+      <h2 class="header-title">Ask the Document</h2>
+      <span class="status-dot" id="statusDot" title="Ready"></span>
+    </header>
+
+    <div class="chat-messages" id="chatMessages">
+
+      <!-- Welcome message -->
+      <div class="msg-row msg-ai">
+        <div class="msg-avatar">AI</div>
+        <div class="msg-bubble msg-bubble--ai">
+          <p>Hello! I've analysed the banking document. Ask me anything about it — interest rates, policies, financial data, or any other content.</p>
+          <span class="msg-time">Now</span>
+        </div>
+      </div>
+
+      <!-- Render saved conversations from DB -->
+      {% for convo in conversations %}
+      <div class="msg-row msg-user">
+        <div class="msg-bubble msg-bubble--user">
+          <p>{{ convo.user_message }}</p>
+          <span class="msg-time">{{ convo.created_at }}</span>
+        </div>
+        <div class="msg-avatar">You</div>
+      </div>
+      <div class="msg-row msg-ai">
+        <div class="msg-avatar">AI</div>
+        <div class="msg-bubble msg-bubble--ai">
+          <p>{{ convo.ai_response }}</p>
+          <span class="msg-time">{{ convo.created_at }}</span>
+        </div>
+      </div>
+      {% endfor %}
+
+    </div>
+
+    <!-- Fixed Input Bar -->
+    <div class="chat-input-bar">
+      <div class="input-wrapper">
+        <textarea
+          id="userInput"
+          class="chat-textarea"
+          placeholder="Ask a question about the document…"
+          rows="1"
+          maxlength="2000"
+        ></textarea>
+        <button class="send-btn" id="sendBtn" title="Send">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="22" y1="2" x2="11" y2="13"></line>
+            <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+          </svg>
+        </button>
+      </div>
+      <p class="input-hint">Powered by Ollama · ChromaDB · RAG</p>
+    </div>
+  </main>
+
+</div>
+
+<!-- Typing indicator template (hidden, cloned by JS) -->
+<template id="typingTemplate">
+  <div class="msg-row msg-ai" id="typingIndicator">
+    <div class="msg-avatar">AI</div>
+    <div class="msg-bubble msg-bubble--ai typing-bubble">
+      <span class="dot"></span><span class="dot"></span><span class="dot"></span>
+    </div>
+  </div>
+</template>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  const chatMessages = document.getElementById('chatMessages');
+  const userInput    = document.getElementById('userInput');
+  const sendBtn      = document.getElementById('sendBtn');
+  const statusDot    = document.getElementById('statusDot');
+
+  // Auto-resize textarea
+  userInput.addEventListener('input', () => {
+    userInput.style.height = 'auto';
+    userInput.style.height = Math.min(userInput.scrollHeight, 140) + 'px';
+  });
+
+  // Send on Enter (Shift+Enter for newline)
+  userInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      sendMessage();
+    }
+  });
+
+  sendBtn.addEventListener('click', sendMessage);
+
+  function scrollToBottom() {
+    chatMessages.scrollTop = chatMessages.scrollHeight;
+  }
+
+  function formatTime(date) {
+    return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  }
+
+  function appendMessage(role, text, timeStr) {
+    const isUser = role === 'user';
+    const row = document.createElement('div');
+    row.className = `msg-row ${isUser ? 'msg-user' : 'msg-ai'}`;
+
+    const avatar = document.createElement('div');
+    avatar.className = 'msg-avatar';
+    avatar.textContent = isUser ? 'You' : 'AI';
+
+    const bubble = document.createElement('div');
+    bubble.className = `msg-bubble ${isUser ? 'msg-bubble--user' : 'msg-bubble--ai'}`;
+
+    const p = document.createElement('p');
+    p.textContent = text;
+
+    const time = document.createElement('span');
+    time.className = 'msg-time';
+    time.textContent = timeStr;
+
+    bubble.appendChild(p);
+    bubble.appendChild(time);
+
+    if (isUser) {
+      row.appendChild(bubble);
+      row.appendChild(avatar);
+    } else {
+      row.appendChild(avatar);
+      row.appendChild(bubble);
+    }
+
+    chatMessages.appendChild(row);
+    scrollToBottom();
+    return row;
+  }
+
+  function showTyping() {
+    const template = document.getElementById('typingTemplate');
+    const clone = template.content.cloneNode(true);
+    chatMessages.appendChild(clone);
+    scrollToBottom();
+    return document.getElementById('typingIndicator');
+  }
+
+  function setStatus(state) {
+    statusDot.className = 'status-dot';
+    if (state === 'loading') statusDot.classList.add('status-loading');
+    if (state === 'error')   statusDot.classList.add('status-error');
+  }
+
+  async function sendMessage() {
+    const message = userInput.value.trim();
+    if (!message) return;
+
+    const now = formatTime(new Date());
+
+    // Append user bubble
+    appendMessage('user', message, now);
+
+    // Reset input
+    userInput.value = '';
+    userInput.style.height = 'auto';
+    sendBtn.disabled = true;
+    userInput.disabled = true;
+    setStatus('loading');
+
+    // Show typing indicator
+    const typingEl = showTyping();
+
+    try {
+      const res = await fetch('/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message }),
+      });
+
+      const data = await res.json();
+
+      // Remove typing indicator
+      typingEl && typingEl.remove();
+
+      if (res.ok) {
+        appendMessage('ai', data.response, formatTime(new Date()));
+        setStatus('');
+      } else {
+        appendMessage('ai', `Error: ${data.error || 'Something went wrong.'}`, formatTime(new Date()));
+        setStatus('error');
+      }
+    } catch (err) {
+      typingEl && typingEl.remove();
+      appendMessage('ai', 'Network error. Please ensure the Flask server and Ollama are running.', formatTime(new Date()));
+      setStatus('error');
+    } finally {
+      sendBtn.disabled = false;
+      userInput.disabled = false;
+      userInput.focus();
+    }
+  }
+
+  // Scroll to bottom on load
+  scrollToBottom();
+</script>
+{% endblock %}
