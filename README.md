@@ -68,7 +68,7 @@ day10-assignment/
 ## PDF Source
 
 Download any banking-related PDF and save it as `./static/document.pdf`.
-
+my-pdf-source : https://www.harcobank.org.in/All%20schemes/amended%20gold%20loan%20scheme.pdf
 **Recommended sources:**
 - [RBI Annual Report](https://www.rbi.org.in/Scripts/AnnualReportPublications.aspx)
 - [RBI Handbook of Statistics on Indian Economy](https://www.rbi.org.in/Scripts/PublicationsView.aspx?id=21447)
