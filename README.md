@@ -25,7 +25,7 @@ Search ChromaDB → Top 5 most relevant document chunks
 Build prompt: [System instruction + Context chunks + Question]
      │
      ▼
-Send to Ollama LLM (llama3.2) → Generate answer
+Send to Ollama LLM (qwen3: 0.6b) → Generate answer
      │
      ▼
 Save conversation to SQLite → Return answer to UI
@@ -167,7 +167,7 @@ Conversations are stored in `instance/conversations.db` (SQLite):
 | Web Framework  | Flask 3                         |
 | Vector Store   | ChromaDB (PersistentClient)     |
 | Embeddings     | Ollama — qwen3-embedding:0.6b   |
-| LLM            | Ollama — llama3.2               |
+| LLM            | Ollama — Qwen3: 0.6b               |
 | PDF Parsing    | pypdf                           |
 | Database       | SQLite via Flask-SQLAlchemy     |
 | Frontend       | HTML, CSS, Vanilla JS, Jinja2   |
