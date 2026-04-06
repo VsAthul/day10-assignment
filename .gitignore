@@ -1,0 +1,8 @@
+__pycache__\
+*.pyc
+*.pyo
+day10env\
+my_chroma_db\
+instance/
+*.db
+*.sqlite3
